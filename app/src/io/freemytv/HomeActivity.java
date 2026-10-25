@@ -18,6 +18,20 @@ public class HomeActivity extends Activity {
     /** Opens All Apps (a remote's All Apps button, RemoteKeys). */
     static final String EXTRA_ALL_APPS = "io.freemytv.ALL_APPS";
     private HomeView home;
+    private Seasons seasons;
+    /** Idle this long on the home screen: Free My TV's screensaver, before Amazon's (5 minutes, with ads) comes. */
+    private static final long SAVER_AFTER_MS = 3 * 60_000L;
+    private final android.os.Handler idle = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable saver = () -> {
+        if (Prefs.autoSaver() && home != null) {
+            startActivity(new Intent(this, ScreensaverActivity.class).putExtra(ScreensaverActivity.EXTRA_AUTO, true));
+        }
+    };
+
+    private void restartIdle() {
+        idle.removeCallbacks(saver);
+        if (home != null) idle.postDelayed(saver, SAVER_AFTER_MS);
+    }
     private int prefsVersion = Prefs.version;   // settings changed while we were away: start over
 
     @Override protected void onCreate(Bundle savedInstanceState) {
@@ -39,7 +53,11 @@ public class HomeActivity extends Activity {
         }
         Ui.init(this);
         home = new HomeView(this);
-        setContentView(home);
+        seasons = new Seasons(this);
+        android.widget.FrameLayout root = new android.widget.FrameLayout(this);
+        root.addView(home);
+        root.addView(seasons);
+        setContentView(root);
         getWindow().setBackgroundDrawable(null);
         if (getIntent().getBooleanExtra(EXTRA_ALL_APPS, false)) home.showAllApps();
     }
@@ -53,9 +71,13 @@ public class HomeActivity extends Activity {
             return;
         }
         if (home != null) home.resume();
+        if (seasons != null) seasons.start();
+        restartIdle();
     }
 
     @Override protected void onPause() {
+        idle.removeCallbacks(saver);
+        if (seasons != null) seasons.stop();
         if (home != null) home.pause();
         super.onPause();
     }
@@ -79,6 +101,7 @@ public class HomeActivity extends Activity {
     }
 
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        restartIdle();
         if (RemoteKeys.onKey(this, event)) return true;
         if (home != null && home.onKey(event)) return true;
         return super.dispatchKeyEvent(event);

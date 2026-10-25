@@ -204,6 +204,14 @@ final class Recs {
 
     /** This hour's 3, movies only ("movie") or shows only ("tv"); null = both (the home screen tabs). */
     List<Pick> now(String kind) {
+        return now(kind, 0);
+    }
+
+    /**
+     * Page `page` of the cards: page 0 is this hour's 3, the next pages the 3 after them in the same order (→ past
+     * the last card). Titles past page 0 may not have their details yet: prepare() fetches them.
+     */
+    List<Pick> now(String kind, int page) {
         List<Pick> list = new ArrayList<>();
         if (!hasKey(context)) return list;    // no TMDB key: no recommendations
         Map<String, Boolean> have = new HashMap<>();   // one look per app, not per title (this runs every 15 s)
@@ -216,11 +224,53 @@ final class Recs {
         // Three per hour, never two from the same franchise ("Law & Order" and "Law & Order: Special…").
         List<Pick> out = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
+        int skip = page * 3;
         for (int i = 0; i < list.size() && out.size() < 3; i++) {
             Pick p = list.get((int) ((hour * 3 + i) % list.size()));
-            if (seen.add(franchise(p.title))) out.add(p);
+            if (!seen.add(franchise(p.title))) continue;
+            if (skip > 0) skip--;
+            else out.add(p);
         }
         return out;
+    }
+
+    private final Set<String> preparing = new HashSet<>();
+    /** A title whose details or image failed isn't asked again for 10 minutes (each answer redraws the cards). */
+    private final Map<String, Long> prepareFailedAt = new HashMap<>();
+
+    /** Fetches the details, image and link of cards shown past page 0 (wanted() only covers page 0). */
+    void prepare(List<Pick> cards) {
+        List<Pick> todo = new ArrayList<>();
+        long now = System.currentTimeMillis();
+        synchronized (preparing) {
+            for (Pick p : cards) {
+                if (p.detailed && (p.pkg == null || p.backdrop == null || hasImage(p))) continue;
+                Long failed = prepareFailedAt.get(key(p));
+                if (failed != null && now - failed >= 0 && now - failed < 10 * 60_000L) continue;
+                if (preparing.add(key(p))) todo.add(p);
+            }
+        }
+        if (todo.isEmpty()) return;
+        io.execute(() -> {
+            try {
+                for (Pick p : todo) {
+                    try {
+                        if (!p.detailed) fetchDetails(p);
+                        if (p.pkg != null) download(p);
+                    } catch (Exception e) {
+                        synchronized (preparing) { prepareFailedAt.put(key(p), System.currentTimeMillis()); }
+                        AppLog.w("recommendation page: " + e.getMessage());
+                    }
+                    findLink(p);
+                }
+                save();
+            } finally {
+                synchronized (preparing) {
+                    for (Pick p : todo) preparing.remove(key(p));
+                }
+                notifyListeners();
+            }
+        });
     }
 
     /** "Law & Order: Special Victims Unit" → "law & order" (what comes before ":" or " - "). */
@@ -697,7 +747,8 @@ final class Recs {
         }
     }
 
-    private JSONObject get(String path) throws IOException, org.json.JSONException {
+    /** A TMDB request with the key (API key or read access token); also used by NewActivity. */
+    JSONObject get(String path) throws IOException, org.json.JSONException {
         String key = readKey();
         if (key == null) throw new IOException("no TMDB key");
         boolean bearer = key.startsWith("eyJ");   // read access token (v4) or API key (v3)

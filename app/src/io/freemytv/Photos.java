@@ -43,7 +43,7 @@ final class Photos {
     /** Smaller ones are icons and thumbnails, not photos. */
     private static final int MIN_SIDE = 640;
 
-    private static File dir(Context c) {
+    static File dir(Context c) {
         return new File(c.getFilesDir(), "photos");
     }
 
@@ -267,6 +267,36 @@ final class Photos {
         AppLog.w("photos: imported " + count + ", " + (have + count) + " in all");
         if (count > 0) Prefs.setPhotos(true);   // new photos show, even if they had been turned off
         return count;
+    }
+
+    /**
+     * Imports one picture now (a wallpaper from the bank, or one sent from a phone; Wallpaper), on the caller's thread:
+     * upright, cropped to 16:9, resized and re-encoded like the others. Returns the imported photo; `src` is left as is.
+     */
+    static File add(Context c, File src) throws IOException {
+        File d = dir(c);
+        if (!d.isDirectory() && !d.mkdirs()) throw new IOException("can't create " + d);
+        File[] imported = d.listFiles((dir, name) -> name.endsWith(".jpg"));
+        if (imported != null && imported.length >= MAX) throw new IOException(MAX + " photos already");
+        Bitmap b = decode(src, W, H);
+        if (b == null) throw new IOException("too small or unreadable");
+        File out = new File(d, String.format(Locale.US, "%013d-%d.jpg", System.currentTimeMillis(), android.os.Process.myPid()));
+        File part = new File(d, out.getName() + ".part");
+        try (OutputStream os = new FileOutputStream(part)) {
+            b.compress(Bitmap.CompressFormat.JPEG, 86, os);
+        } finally {
+            b.recycle();
+        }
+        if (!part.renameTo(out)) {
+            part.delete();
+            throw new IOException("can't name " + out.getName());
+        }
+        return out;
+    }
+
+    /** Deletes one imported photo (Wallpaper: long press on it). */
+    static void remove(File f) {
+        f.delete();
     }
 
     /** Deletes the imported photos and whatever is still waiting, half-sent ones included. */

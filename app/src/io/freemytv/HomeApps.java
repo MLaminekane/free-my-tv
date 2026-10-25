@@ -58,6 +58,18 @@ final class HomeApps {
     static final int APP = 0, LIVE_TV = 1, INPUT = 2, ALL_APPS = 3, SETTINGS = 4, ANDROID_SETTINGS = 5, DEVICE = 6;
     /** The "HDMI Inputs" button: opens the bottom drawer on the inputs (the home screen handles it). */
     static final int INPUTS = 7;
+    /** The light/dark button: switches the home screen's theme (the home screen handles it). */
+    static final int THEME = 8;
+    /** The wallpaper button: opens WallpaperActivity. */
+    static final int WALLPAPER = 9;
+    /** The screensaver button: opens ScreensaverActivity (your photos and the wallpaper bank, right now). */
+    static final int SCREENSAVER = 10;
+    /** The sleep timer button (Home Redirect turns the TV off): 30, 60, 90 minutes, off. */
+    static final int SLEEP = 11;
+    /** The phone remote button: RemoteActivity (its QR code). */
+    static final int PHONE_REMOTE = 12;
+    /** "New this week" in the drawer: NewActivity. */
+    static final int NEW_WEEK = 13;
     /** Image size of each card (16:9; on screen it shows up to ~330 px wide). */
     static final int TILE_W = 384, TILE_H = 216;
 
@@ -154,7 +166,12 @@ final class HomeApps {
             "com.Smartdevice.emanual",              // Skyworth: user manual
             "com.google.android.videos",            // Google Play Movies (discontinued)
             "com.disney.starplus",                  // Star+ (merged into Disney+)
+            "com.mediatek.opapp",                   // Hisense Fire TV: HD+ operator app (black screen without a broadcast)
             "com.tcl.exhibit"));                    // TCL: T-Exhibition
+
+    /** System apps with only a phone launcher entry that still belong in "All Apps": Fire OS's Appstore. */
+    private static final Set<String> SYSTEM_SHOWN = new HashSet<>(java.util.Arrays.asList(
+            "com.amazon.venezia"));                 // Amazon Appstore
 
     private static final Map<String, Bitmap> TILES = new HashMap<>();   // key → ready card
     private static final Map<String, Bitmap> LOGOS = new HashMap<>();   // key → colored logo with no background
@@ -234,17 +251,42 @@ final class HomeApps {
 
     // MARK: - Top buttons (the round ones at the top right)
 
-    static final String TOP_LIVE = "live", TOP_INPUTS = "inputs", TOP_SETTINGS = "settings";
-    static final List<String> TOP_DEFAULT = Collections.unmodifiableList(java.util.Arrays.asList(TOP_LIVE, TOP_INPUTS, TOP_SETTINGS));
+    static final String TOP_LIVE = "live", TOP_INPUTS = "inputs", TOP_SCREENSAVER = "screensaver", TOP_SLEEP = "sleep",
+            TOP_REMOTE = "remote", TOP_WALLPAPER = "wallpaper", TOP_THEME = "theme", TOP_SETTINGS = "settings";
+    static final List<String> TOP_DEFAULT = Collections.unmodifiableList(java.util.Arrays.asList(
+            TOP_LIVE, TOP_INPUTS, TOP_SCREENSAVER, TOP_SLEEP, TOP_REMOTE, TOP_WALLPAPER, TOP_THEME, TOP_SETTINGS));
     static final int MAX_TOP = TOP_DEFAULT.size();
+
+    /**
+     * Fire OS (Fire TV Edition sets): switching to an HDMI input or the tuner needs Amazon-signed permissions
+     * (com.amazon.tv.permission.TUNE_INPUT on its passthrough player, LAUNCH_INPUTS on its input menu), and the
+     * standard passthrough request opens Live TV instead. Live TV and the HDMI tiles are left out there: the remote's
+     * Input button and HDMI-CEC (a console switching the TV over when it wakes) do it.
+     */
+    /**
+     * Fire OS's settings grid lives in Amazon's launcher. ACTION_SETTINGS reaches it through Amazon's home screen, which
+     * the Fire TV Home redirect sends straight back here; this opens the grid itself (exported, no permission).
+     */
+    private static final Intent FIRE_SETTINGS = new Intent("amazon.intent.action.MAINSETTINGS")
+            .addCategory("android.intent.category.MAINSETTINGS")
+            .setComponent(new ComponentName("com.amazon.tv.launcher", "com.amazon.tv.launcher.ui.MainSettingsActivity"));
+
+    static boolean switchesInputs() {
+        return !HomeMode.AMAZON;
+    }
 
     /** The keys of the top buttons, in order (Settings > Top Buttons; by default Live TV, HDMI Inputs, Settings). */
     static List<String> topButtonKeys() {
         List<String> saved = Prefs.topButtons();
-        if (saved == null) return TOP_DEFAULT;
         List<String> keys = new ArrayList<>();
-        for (String key : saved) if (TOP_DEFAULT.contains(key) && !keys.contains(key)) keys.add(key);
+        for (String key : saved == null ? TOP_DEFAULT : saved) {
+            if (TOP_DEFAULT.contains(key) && !keys.contains(key) && topAvailable(key)) keys.add(key);
+        }
         return keys;
+    }
+
+    private static boolean topAvailable(String key) {
+        return switchesInputs() || !(TOP_LIVE.equals(key) || TOP_INPUTS.equals(key));
     }
 
     /** The top buttons, ready to draw (0 to 3 of them). */
@@ -258,6 +300,12 @@ final class HomeApps {
         switch (key) {
             case TOP_LIVE: return action(LIVE_TV, TOP_LIVE, Ui.tr("light|Live TV"), "live_tv");
             case TOP_INPUTS: return action(INPUTS, TOP_INPUTS, Ui.tr("HDMI Inputs"), "hdmi");
+            // The icon says what is on now: the sun by day (light), the moon at night (dark).
+            case TOP_SCREENSAVER: return action(SCREENSAVER, TOP_SCREENSAVER, Ui.tr("Screensaver"), "slideshow");
+            case TOP_SLEEP: return action(SLEEP, TOP_SLEEP, Ui.tr("Sleep timer"), "timer");
+            case TOP_REMOTE: return action(PHONE_REMOTE, TOP_REMOTE, Ui.tr("Phone remote"), "phone");
+            case TOP_WALLPAPER: return action(WALLPAPER, TOP_WALLPAPER, Ui.tr("Wallpaper"), "wallpaper");
+            case TOP_THEME: return action(THEME, TOP_THEME, Ui.tr("Theme"), "dark".equals(Prefs.theme()) ? "clear_night" : "sunny");
             default: return action(SETTINGS, TOP_SETTINGS, Ui.tr("light|Settings"), "settings");
         }
     }
@@ -265,7 +313,7 @@ final class HomeApps {
     /** What can go in the top buttons, as {key, name}. */
     static List<String[]> topCandidates() {
         List<String[]> out = new ArrayList<>();
-        for (String key : TOP_DEFAULT) out.add(new String[] {key, topButton(key).label});
+        for (String key : TOP_DEFAULT) if (topAvailable(key)) out.add(new String[] {key, topButton(key).label});
         return out;
     }
 
@@ -303,7 +351,8 @@ final class HomeApps {
     static List<Item> drawerShortcuts(Context c) {
         List<Item> items = new ArrayList<>();
         items.add(shortcut(ALL_APPS, "all", Ui.tr("All Apps"), "apps"));
-        items.add(shortcut(SETTINGS, "settings", Ui.tr("Home Settings"), "settings"));
+        if (Recs.hasKey(c)) items.add(shortcut(NEW_WEEK, "new", Ui.tr("New this week"), "new"));
+        // Home Settings is the round button at the top right: not repeated here.
         items.add(shortcut(ANDROID_SETTINGS, "tv-settings", Ui.tr("TV Settings"), "tv_settings"));
         // HY300 projectors (Hotack, Allwinner H713): keystone and focus live in the maker's settings app, and the
         // stock home screen was the only way to its Miracast receiver. Each shows only where the TV has it.
@@ -355,6 +404,7 @@ final class HomeApps {
      */
     private static List<Item> inputs(Context c, boolean all) {
         List<Item> out = new ArrayList<>();
+        if (!switchesInputs()) return out;
         TvInputManager tim = (TvInputManager) c.getSystemService(Context.TV_INPUT_SERVICE);
         if (tim == null) return out;
         List<TvInputInfo> list = new ArrayList<>();
@@ -544,8 +594,20 @@ final class HomeApps {
             case SETTINGS:
                 intent = new Intent().setComponent(new ComponentName(a, SettingsActivity.class));
                 break;
+            case WALLPAPER:
+                intent = new Intent().setComponent(new ComponentName(a, WallpaperActivity.class));
+                break;
+            case SCREENSAVER:
+                intent = new Intent().setComponent(new ComponentName(a, ScreensaverActivity.class));
+                break;
+            case NEW_WEEK:
+                intent = new Intent().setComponent(new ComponentName(a, NewActivity.class));
+                break;
+            case PHONE_REMOTE:
+                intent = new Intent().setComponent(new ComponentName(a, RemoteActivity.class));
+                break;
             case ANDROID_SETTINGS:
-                intent = new Intent(Settings.ACTION_SETTINGS);
+                intent = HomeMode.AMAZON ? new Intent(FIRE_SETTINGS) : new Intent(Settings.ACTION_SETTINGS);
                 break;
             case DEVICE:
                 // A fresh task: else Back walks through whatever the maker's settings app had open before
@@ -577,6 +639,7 @@ final class HomeApps {
      * be HDMI, so its explicit activity receives the tuner URI. Other TV apps keep the standard channel-list request.
      */
     static Intent liveTv(Context c) {
+        if (!switchesInputs()) return null;
         PackageManager pm = c.getPackageManager();
         // MediaTek OneWorld TV Center (KTC/NextStar) has one input per tuner mode (antenna, cable, satellite): tuning one
         // switches the TV to that mode and hides the other channel lists, so it opens as it is, on its own last channel.
@@ -644,7 +707,8 @@ final class HomeApps {
         Intent phone = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         for (ResolveInfo ri : pm.queryIntentActivities(phone, 0)) {
             String pkg = ri.activityInfo.packageName;
-            if ((ri.activityInfo.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0 || !seen.add(pkg)) continue;
+            boolean system = (ri.activityInfo.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+            if ((system && !SYSTEM_SHOWN.contains(pkg)) || !seen.add(pkg)) continue;
             out.add(new String[] {pkg, String.valueOf(ri.loadLabel(pm))});
         }
         return out;

@@ -143,8 +143,16 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
         }
     };
 
+    /** The screensaver button (ScreensaverActivity): your photos and the wallpaper bank's instead of the picks. */
+    private final boolean wallpapers;
+
     DreamView(Context c) {
+        this(c, false);
+    }
+
+    DreamView(Context c, boolean wallpapers) {
         super(c);
+        this.wallpapers = wallpapers;
         data = HomeData.get(c);
         recs = Recs.get(c);
         Shaders.dream(scene.palette);
@@ -176,6 +184,7 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
         recs.refreshIfStale();
         recs.prefetchAll();
         Photos.importInbox(getContext(), () -> { if (running) prepareNext(); });
+        if (wallpapers) Wallpaper.fetchSlides(getContext(), () -> { if (running) prepareNext(); });
         prepareNext();
         handler.postDelayed(tick, 60_000);
         Choreographer.getInstance().postFrameCallback(this);
@@ -264,6 +273,7 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
 
     /** Your photos when they are on, otherwise the picks'. */
     private List<Recs.Pick> photos() {
+        if (wallpapers) return Wallpaper.slides(getContext());
         return Photos.on(getContext()) ? Photos.picks(getContext()) : recs.showcase();
     }
 

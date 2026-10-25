@@ -52,6 +52,10 @@
         <package android:name="com.xiaomi.mitv.tvplayer" />
         <package android:name="com.amazon.tv.livetv" />
         <package android:name="com.amazon.mediatek.livetv" />
+        <!-- Fire OS: Home Redirect (sleep timer, phone remote: Redirect) -->
+        <package android:name="io.firehome.redirect" />
+        <!-- Fire OS: its settings grid (MainSettingsActivity) is in Amazon's launcher -->
+        <package android:name="com.amazon.tv.launcher" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
@@ -95,6 +99,59 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The wallpaper button's screen (WallpaperActivity): the posters, your photos, a phone, the wallpaper bank. -->
+        <activity
+            android:name=".WallpaperActivity"
+            android:process=":home"
+            android:exported="false"
+            android:label="Wallpaper"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/FreeMyTV.Home" />
+
+        <!-- The screensaver button's screen (ScreensaverActivity): the slideshow right now, any key closes it. -->
+        <!-- Exported: the phone remote (Home Redirect) starts it. -->
+        <activity
+            android:name=".ScreensaverActivity"
+            android:process=":home"
+            android:exported="true"
+            android:label="Screensaver"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/FreeMyTV.Home" />
+
+        <!-- The Football tab's screen (FootballActivity). -->
+        <activity
+            android:name=".FootballActivity"
+            android:process=":home"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/FreeMyTV.Home" />
+
+        <!-- "New this week" (NewActivity), from the drawer. -->
+        <activity
+            android:name=".NewActivity"
+            android:process=":home"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/FreeMyTV.Home" />
+
+        <!-- The phone remote button's screen (RemoteActivity): its QR code. -->
+        <activity
+            android:name=".RemoteActivity"
+            android:process=":home"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/FreeMyTV.Home" />
 
         <!-- The home screen. Its own process (:home): if it ever crashes, the safety net in the main process still
              works. It only becomes the TV's home screen in Free My TV mode (cmd package set-home-activity). -->

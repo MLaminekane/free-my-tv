@@ -165,6 +165,18 @@ final class Prefs {
     static boolean photos() { return sp().getBoolean("photos", true); }
     static void setPhotos(boolean on) { put("photos", on); }
 
+    /** Free My TV's screensaver after 3 minutes on the home screen (before Amazon's, at 5). */
+    static boolean autoSaver() { return sp().getBoolean("autoSaver", true); }
+    static void setAutoSaver(boolean on) { put("autoSaver", on); }
+
+    /** Seasonal effects on the home screen (Seasons): Halloween, snow in winter. */
+    static boolean seasonal() { return sp().getBoolean("seasonal", true); }
+    static void setSeasonal(boolean on) { put("seasonal", on); }
+
+    /** The home screen's wallpaper: an imported photo's file name (Photos), or empty for the picks' posters. */
+    static String wallpaper() { return sp().getString("wallpaper", ""); }
+    static void setWallpaper(String name) { put("wallpaper", name); }
+
     static boolean coin(int i) { return sp().getBoolean("coin" + i, true); }
     static void setCoin(int i, boolean on) { put("coin" + i, on); }
 

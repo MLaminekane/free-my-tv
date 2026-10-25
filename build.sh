@@ -69,6 +69,7 @@ final class Config {
     static final String LATITUDE = "$LAT";
     static final String LONGITUDE = "$LON";
     static final String CITY = "$(prop city '')";
+    static final String NAME = "$(prop name '')";
     static final String LANGUAGE = "$(prop language auto)";
     static final String CURRENCY = "$CURRENCY";
     static final String TEMPERATURE = "$(prop temperature auto)";
